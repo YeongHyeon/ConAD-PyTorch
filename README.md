@@ -1,7 +1,7 @@
 Consistency-based anomaly detection (ConAD)
 =====
 
-Implementation of Consistency-based anomaly detection (ConAD) from paper <a href="https://arxiv.org/abs/1810.13292">'Anomaly Detection With Multiple-Hypotheses Predictions'</a> with MNIST dataset [<a href="https://github.com/YeongHyeon/CVAE-AnomalyDetection">Related repository</a>].
+Implementation of Consistency-based anomaly detection (ConAD) from paper <a href="https://arxiv.org/abs/1810.13292">'Anomaly Detection With Multiple-Hypotheses Predictions'</a> with MNIST dataset[<a href="https://github.com/YeongHyeon/ConAD">TensorFlow Version</a>].
 
 ## Architecture
 <div align="center">
