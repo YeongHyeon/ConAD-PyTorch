@@ -265,9 +265,9 @@ def training(neuralnet, dataset, epochs, batch_size):
     elapsed_time = time.time() - start_time
     print("Elapsed: "+str(elapsed_time))
 
-    save_graph(contents=loss_d, xlabel="Iteration", ylabel="Discriminate Error", savename="loss_d")
-    save_graph(contents=loss_g, xlabel="Iteration", ylabel="Generate Error", savename="loss_g")
-    save_graph(contents=loss_tot, xlabel="Iteration", ylabel="Total Loss", savename="loss_tot")
+    save_graph(contents=list_d, xlabel="Iteration", ylabel="Discriminate Error", savename="loss_d")
+    save_graph(contents=list_g, xlabel="Iteration", ylabel="Generate Error", savename="loss_g")
+    save_graph(contents=list_tot, xlabel="Iteration", ylabel="Total Loss", savename="loss_tot")
 
 def test(neuralnet, dataset):
 
@@ -308,7 +308,7 @@ def test(neuralnet, dataset):
                 x_mulin = torch.cat((x_mulin, x_hat.unsqueeze(0)))
                 x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
         best_idx = lfs.find_best_x(x_mulin, x_mulout)
-        mse = mean_square_error(x_te_torch, x_mulout[best_idx])
+        mse = lfs.mean_square_error(x_te_torch, x_mulout[best_idx])
 
         score_anomaly = mse.item()
 
@@ -354,9 +354,9 @@ def test(neuralnet, dataset):
                 x_mulin = torch.cat((x_mulin, x_hat.unsqueeze(0)))
                 x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
         best_idx = lfs.find_best_x(x_mulin, x_mulout)
-        mse = mean_square_error(x_te_torch, x_mulout[best_idx])
+        mse = lfs.mean_square_error(x_te_torch, x_mulout[best_idx])
 
-        score_anomaly = l_con.item()
+        score_anomaly = mse.item()
 
         z_code = torch2npy(z_code)
         x_best = np.transpose(torch2npy(x_mulout[best_idx]), (0, 2, 3, 1))
