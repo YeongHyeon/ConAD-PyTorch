@@ -204,6 +204,7 @@ class Discriminator(nn.Module):
             nn.Linear((self.height//(2**2))*(self.width//(2**2))*self.channel*64, 512),
             nn.ELU(),
             nn.Linear(512, 1),
+            nn.Sigmoid(),
         )
 
     def forward(self, input):
