@@ -2,6 +2,9 @@ import torch
 
 def mean_square_error(x, x_hat):
 
+    try: x, x_hat = x.cpu(), x_hat.cpu()
+    except: pass
+
     # regarded as multiplied mse with specific bias
     data_dim = len(x.shape)
     if(data_dim == 5):
@@ -16,6 +19,9 @@ def mean_square_error(x, x_hat):
         return torch.sum((x - x_hat)**2)
 
 def find_best_x(x_mulin, x_mulout):
+
+    x_mulin, x_mulout = \
+        x_mulin.cpu(), x_mulout.cpu()
 
     mse = mean_square_error(x_mulin, x_mulout)
     best_idx = torch.argmin(mse[1:])

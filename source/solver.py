@@ -238,7 +238,7 @@ def training(neuralnet, dataset, epochs, batch_size):
 
             loss_g = lfs.lossfunc_g(x_tr_torch, x_mulout[best_idx], z_mu, z_sigma, loss_d)
             neuralnet.optimizer_g.zero_grad()
-            loss_g.backward(retain_graph=True)
+            loss_g.backward()
             neuralnet.optimizer_g.step()
 
             z_code = torch2npy(z_code)
