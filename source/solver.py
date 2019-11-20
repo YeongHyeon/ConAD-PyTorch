@@ -121,6 +121,38 @@ def torch2npy(input):
     output = input.detach().numpy()
     return output
 
+def forward(neuralnet, x, z):
+
+    z_code, z_mu, z_sigma = neuralnet.encoder(x.to(neuralnet.device))
+    x_hat = neuralnet.decoder(z_code.to(neuralnet.device))
+    x_fake = neuralnet.decoder(z.to(neuralnet.device))
+
+    x_mulin, x_mulout = None, None
+    for idx_h, hypotheses in enumerate(neuralnet.hypotheses):
+        if(idx_h == 0):
+            tmp_hypo = hypotheses(x_fake.to(neuralnet.device))
+        else:
+            tmp_hypo = hypotheses(x_hat.to(neuralnet.device))
+        if(x_mulin is None):
+            x_mulin = x.unsqueeze(0)
+            x_mulout = tmp_hypo.unsqueeze(0)
+        else:
+            x_mulin = torch.cat((x_mulin, x.unsqueeze(0)))
+            x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
+    best_idx = lfs.find_best_x(x_mulin, x_mulout)
+    x_best, x_fake = x_mulout[best_idx], x_mulout[0]
+
+    d_real, d_fake, d_best, d_others = 0, 0, 0, 0
+    d_real = neuralnet.discriminator(x.to(neuralnet.device))
+    for idx_h, _ in enumerate(neuralnet.hypotheses):
+        tmp_d = neuralnet.discriminator(x_mulout[idx_h].to(neuralnet.device))
+        if(idx_h == 0): d_fake = tmp_d
+        elif(idx_h == best_idx): d_best = tmp_d
+        else: d_others = torch.add(tmp_d, d_others)
+    d_others = torch.div(d_others, neuralnet.num_h)
+
+    return d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma
+
 def training(neuralnet, dataset, epochs, batch_size):
 
     print("\nTraining to %d epochs (%d of minibatch size)" %(epochs, batch_size))
@@ -142,35 +174,12 @@ def training(neuralnet, dataset, epochs, batch_size):
         x_tr, x_tr_torch, y_tr, y_tr_torch, _ = dataset.next_train(batch_size=test_size, fix=True) # Initial batch
         z_tr, z_tr_torch = dataset.random_noise(test_size, neuralnet.z_dim)
 
-        z_code, z_mu, z_sigma = neuralnet.encoder(x_tr_torch.to(neuralnet.device))
-        x_hat = neuralnet.decoder(z_code.to(neuralnet.device))
-        x_fake = neuralnet.decoder(z_tr_torch.to(neuralnet.device))
-
-        x_mulin, x_mulout = None, None
-        for idx_h, hypotheses in enumerate(neuralnet.hypotheses):
-            if(idx_h == 0):
-                tmp_hypo = hypotheses(x_fake.to(neuralnet.device))
-            else:
-                tmp_hypo = hypotheses(x_hat.to(neuralnet.device))
-            if(x_mulin is None):
-                x_mulin = x_hat.unsqueeze(0)
-                x_mulout = tmp_hypo.unsqueeze(0)
-            else:
-                x_mulin = torch.cat((x_mulin, x_hat.unsqueeze(0)))
-                x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
-        best_idx = lfs.find_best_x(x_mulin, x_mulout)
-
-        d_fake, d_best, d_others = 0, 0, 0
-        for idx_h, _ in enumerate(neuralnet.hypotheses):
-            tmp_d = neuralnet.discriminator(x_mulout[idx_h].to(neuralnet.device))
-            if(idx_h == 0): d_fake = tmp_d
-            elif(idx_h == best_idx): d_best = tmp_d
-            else: d_others = torch.add(tmp_d, d_others)
-        d_others = torch.div(d_others, neuralnet.num_h)
+        d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+            forward(neuralnet, x_tr_torch, z_tr_torch)
 
         z_code = torch2npy(z_code)
-        x_best = np.transpose(torch2npy(x_mulout[best_idx]), (0, 2, 3, 1))
-        x_fake = np.transpose(torch2npy(x_mulout[0]), (0, 2, 3, 1))
+        x_best = np.transpose(torch2npy(x_best), (0, 2, 3, 1))
+        x_fake = np.transpose(torch2npy(x_fake), (0, 2, 3, 1))
 
         if(neuralnet.z_dim == 2):
             latent_plot(latent=z_code, y=y_tr, n=dataset.num_class, \
@@ -204,46 +213,22 @@ def training(neuralnet, dataset, epochs, batch_size):
             x_tr, x_tr_torch, y_tr, y_tr_torch, terminator = dataset.next_train(batch_size)
             z_tr, z_tr_torch = dataset.random_noise(batch_size, neuralnet.z_dim)
 
-            z_code, z_mu, z_sigma = neuralnet.encoder(x_tr_torch.to(neuralnet.device))
-            x_hat = neuralnet.decoder(z_code.to(neuralnet.device))
-            x_fake = neuralnet.decoder(z_tr_torch.to(neuralnet.device))
-
-            x_mulin, x_mulout = None, None
-            for idx_h, hypotheses in enumerate(neuralnet.hypotheses):
-                if(idx_h == 0):
-                    tmp_hypo = hypotheses(x_fake.to(neuralnet.device))
-                else:
-                    tmp_hypo = hypotheses(x_hat.to(neuralnet.device))
-                if(x_mulin is None):
-                    x_mulin = x_hat.unsqueeze(0)
-                    x_mulout = tmp_hypo.unsqueeze(0)
-                else:
-                    x_mulin = torch.cat((x_mulin, x_hat.unsqueeze(0)))
-                    x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
-            best_idx = lfs.find_best_x(x_mulin, x_mulout)
-
-            d_real, d_fake, d_best, d_others = 0, 0, 0, 0
-            d_real = neuralnet.discriminator(x_tr_torch.to(neuralnet.device))
-            for idx_h, _ in enumerate(neuralnet.hypotheses):
-                tmp_d = neuralnet.discriminator(x_mulout[idx_h].to(neuralnet.device))
-                if(idx_h == 0): d_fake = tmp_d
-                elif(idx_h == best_idx): d_best = tmp_d
-                else: d_others = torch.add(tmp_d, d_others)
-            d_others = torch.div(d_others, neuralnet.num_h)
+            d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+                forward(neuralnet, x_tr_torch, z_tr_torch)
 
             loss_d = lfs.lossfunc_d(d_real, d_fake, d_best, d_others, neuralnet.num_h)
             neuralnet.optimizer_d.zero_grad()
             loss_d.backward(retain_graph=True)
             neuralnet.optimizer_d.step()
 
-            loss_g = lfs.lossfunc_g(x_tr_torch, x_mulout[best_idx], z_mu, z_sigma, loss_d)
+            loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, loss_d)
             neuralnet.optimizer_g.zero_grad()
             loss_g.backward()
             neuralnet.optimizer_g.step()
 
             z_code = torch2npy(z_code)
-            x_best = np.transpose(torch2npy(x_mulout[best_idx]), (0, 2, 3, 1))
-            x_fake = np.transpose(torch2npy(x_mulout[0]), (0, 2, 3, 1))
+            x_best = np.transpose(torch2npy(x_best), (0, 2, 3, 1))
+            x_fake = np.transpose(torch2npy(x_fake), (0, 2, 3, 1))
 
             loss_tot = loss_d+loss_g
             list_d.append(loss_d)
@@ -291,24 +276,9 @@ def test(neuralnet, dataset):
         x_te, x_te_torch, y_te, y_te_torch, terminator = dataset.next_test(1) # y_te does not used in this prj.
         z_te, z_te_torch = dataset.random_noise(1, neuralnet.z_dim)
 
-        z_code, z_mu, z_sigma = neuralnet.encoder(x_te_torch.to(neuralnet.device))
-        x_hat = neuralnet.decoder(z_code.to(neuralnet.device))
-        x_fake = neuralnet.decoder(z_te_torch.to(neuralnet.device))
-
-        x_mulin, x_mulout = None, None
-        for idx_h, hypotheses in enumerate(neuralnet.hypotheses):
-            if(idx_h == 0):
-                tmp_hypo = hypotheses(x_fake.to(neuralnet.device))
-            else:
-                tmp_hypo = hypotheses(x_hat.to(neuralnet.device))
-            if(x_mulin is None):
-                x_mulin = x_hat.unsqueeze(0)
-                x_mulout = tmp_hypo.unsqueeze(0)
-            else:
-                x_mulin = torch.cat((x_mulin, x_hat.unsqueeze(0)))
-                x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
-        best_idx = lfs.find_best_x(x_mulin, x_mulout)
-        mse = lfs.mean_square_error(x_te_torch, x_mulout[best_idx])
+        d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+            forward(neuralnet, x_te_torch, z_te_torch)
+        mse = lfs.mean_square_error(x_te_torch, x_best)
 
         score_anomaly = mse.item()
 
@@ -337,30 +307,15 @@ def test(neuralnet, dataset):
         x_te, x_te_torch, y_te, y_te_torch, terminator = dataset.next_test(1) # y_te does not used in this prj.
         z_te, z_te_torch = dataset.random_noise(1, neuralnet.z_dim)
 
-        z_code, z_mu, z_sigma = neuralnet.encoder(x_te_torch.to(neuralnet.device))
-        x_hat = neuralnet.decoder(z_code.to(neuralnet.device))
-        x_fake = neuralnet.decoder(z_te_torch.to(neuralnet.device))
-
-        x_mulin, x_mulout = None, None
-        for idx_h, hypotheses in enumerate(neuralnet.hypotheses):
-            if(idx_h == 0):
-                tmp_hypo = hypotheses(x_fake.to(neuralnet.device))
-            else:
-                tmp_hypo = hypotheses(x_hat.to(neuralnet.device))
-            if(x_mulin is None):
-                x_mulin = x_hat.unsqueeze(0)
-                x_mulout = tmp_hypo.unsqueeze(0)
-            else:
-                x_mulin = torch.cat((x_mulin, x_hat.unsqueeze(0)))
-                x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
-        best_idx = lfs.find_best_x(x_mulin, x_mulout)
-        mse = lfs.mean_square_error(x_te_torch, x_mulout[best_idx])
+        d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+            forward(neuralnet, x_te_torch, z_te_torch)
+        mse = lfs.mean_square_error(x_te_torch, x_best)
 
         score_anomaly = mse.item()
 
         z_code = torch2npy(z_code)
-        x_best = np.transpose(torch2npy(x_mulout[best_idx]), (0, 2, 3, 1))
-        x_fake = np.transpose(torch2npy(x_mulout[0]), (0, 2, 3, 1))
+        x_best = np.transpose(torch2npy(x_best), (0, 2, 3, 1))
+        x_fake = np.transpose(torch2npy(x_fake), (0, 2, 3, 1))
 
         loss4box[y_te[0]].append(score_anomaly)
 
