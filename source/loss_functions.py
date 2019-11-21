@@ -48,6 +48,6 @@ def lossfunc_g(x, x_best, z_mu, z_sigma, loss_d):
     kl_divergence = 0.5 * torch.sum(z_mu**2 + z_sigma**2 - torch.log(z_sigma**2 + 1e-12) - 1, dim=(1))
 
     ELBO = torch.mean(restore_error + kl_divergence)
-    loss_g = ELBO - loss_d
+    loss_g = ELBO #- loss_d
 
     return loss_g

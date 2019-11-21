@@ -231,7 +231,8 @@ def training(neuralnet, dataset, epochs, batch_size):
             loss_d.backward(retain_graph=True)
             neuralnet.optimizer_d.step()
 
-            loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, loss_d)
+            loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, \
+                lfs.lossfunc_d(d_real, d_fake, d_best, d_others, neuralnet.num_h))
             neuralnet.optimizer_d.zero_grad()
             neuralnet.optimizer_g.zero_grad()
             loss_g.backward()

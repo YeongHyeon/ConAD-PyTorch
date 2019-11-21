@@ -43,12 +43,10 @@ class NeuralNet(object):
             print(model)
         print("The number of parameters: %d" %(self.num_params))
 
-        self.params_d, self.params_g = None, None
-        for idx_m, model in enumerate(self.models):
-            if(idx_m == 0): self.params_d = list(self.models[idx_m].parameters())
-            else:
-                if(self.params_g is None): self.params_g = list(self.models[idx_m].parameters())
-                else: self.params_g = self.params_g + list(self.models[idx_m].parameters())
+        self.params_d = list(self.discriminator.parameters())
+        self.params_g = list(self.encoder.parameters()) + list(self.decoder.parameters())
+        for idx_h in range(self.num_h+1):
+            self.params_g += list(self.hypotheses[idx_h].parameters())
 
         self.optimizer_d = optim.Adam(self.params_d, lr=self.learning_rate)
         self.optimizer_g = optim.Adam(self.params_g, lr=self.learning_rate)
