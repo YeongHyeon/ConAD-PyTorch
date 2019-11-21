@@ -24,9 +24,9 @@ def find_best_x(x_mulin, x_mulout):
         x_mulin.cpu(), x_mulout.cpu()
 
     mse = mean_square_error(x_mulin, x_mulout)
-    best_idx = torch.argmin(mse[1:])
+    best_idx = torch.argmin(mse).item()
 
-    return best_idx+1
+    return best_idx
 
 def lossfunc_d(d_real, d_fake, d_best, d_others, num_h):
 

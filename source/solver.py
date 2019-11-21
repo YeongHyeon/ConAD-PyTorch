@@ -130,26 +130,35 @@ def forward(neuralnet, x, z):
     x_mulin, x_mulout = None, None
     for idx_h, hypotheses in enumerate(neuralnet.hypotheses):
         if(idx_h == 0):
-            tmp_hypo = hypotheses(x_fake.to(neuralnet.device))
+            x_fake = hypotheses(x_fake.to(neuralnet.device))
         else:
             tmp_hypo = hypotheses(x_hat.to(neuralnet.device))
-        if(x_mulin is None):
-            x_mulin = x.unsqueeze(0)
-            x_mulout = tmp_hypo.unsqueeze(0)
-        else:
-            x_mulin = torch.cat((x_mulin, x.unsqueeze(0)))
-            x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
+
+            if(x_mulin is None):
+                x_mulin = x.unsqueeze(0)
+                x_mulout = tmp_hypo.unsqueeze(0)
+            else:
+                x_mulin = torch.cat((x_mulin, x.unsqueeze(0)))
+                x_mulout = torch.cat((x_mulout, tmp_hypo.unsqueeze(0)))
     best_idx = lfs.find_best_x(x_mulin, x_mulout)
-    x_best, x_fake = x_mulout[best_idx], x_mulout[0]
+    x_best = x_mulout[best_idx]
+
+    x_others = None
+    for idx_h, _ in enumerate(x_mulout):
+        if(idx_h == best_idx): pass
+        else:
+            if(x_others is None): x_others = x_mulout[idx_h].unsqueeze(0)
+            else: x_others = torch.cat((x_others, x_mulout[idx_h].unsqueeze(0)))
 
     d_real, d_fake, d_best, d_others = 0, 0, 0, 0
     d_real = neuralnet.discriminator(x.to(neuralnet.device))
-    for idx_h, _ in enumerate(neuralnet.hypotheses):
-        tmp_d = neuralnet.discriminator(x_mulout[idx_h].to(neuralnet.device))
-        if(idx_h == 0): d_fake = tmp_d
-        elif(idx_h == best_idx): d_best = tmp_d
-        else: d_others = torch.add(tmp_d, d_others)
-    d_others = torch.div(d_others, neuralnet.num_h)
+    d_fake = neuralnet.discriminator(x_fake.to(neuralnet.device))
+    d_best = neuralnet.discriminator(x_best.to(neuralnet.device))
+
+    for idx_h, _ in enumerate(x_others):
+        tmp_d = neuralnet.discriminator(x_others[idx_h].to(neuralnet.device))
+        d_others = torch.add(tmp_d, d_others)
+    d_others = torch.div(d_others, neuralnet.num_h-1)
 
     return d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma
 
@@ -218,10 +227,12 @@ def training(neuralnet, dataset, epochs, batch_size):
 
             loss_d = lfs.lossfunc_d(d_real, d_fake, d_best, d_others, neuralnet.num_h)
             neuralnet.optimizer_d.zero_grad()
+            neuralnet.optimizer_g.zero_grad()
             loss_d.backward(retain_graph=True)
             neuralnet.optimizer_d.step()
 
             loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, loss_d)
+            neuralnet.optimizer_d.zero_grad()
             neuralnet.optimizer_g.zero_grad()
             loss_g.backward()
             neuralnet.optimizer_g.step()
