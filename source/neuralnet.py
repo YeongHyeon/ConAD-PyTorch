@@ -35,6 +35,7 @@ class NeuralNet(object):
         for idx_m, model in enumerate(self.models):
             if(self.device.type == 'cuda') and (self.models[idx_m].ngpu > 0):
                 self.models[idx_m] = nn.DataParallel(self.models[idx_m], list(range(self.models[idx_m].ngpu)))
+            self.models[idx_m].apply(self.weights_init)
 
         self.num_params = 0
         for idx_m, model in enumerate(self.models):
@@ -51,13 +52,13 @@ class NeuralNet(object):
         self.optimizer_d = optim.Adam(self.params_d, lr=self.learning_rate)
         self.optimizer_g = optim.Adam(self.params_g, lr=self.learning_rate)
 
-    # def weights_init(self, m):
-    #     classname = m.__class__.__name__
-    #     if classname.find('Conv') != -1:
-    #         nn.init.normal_(m.weight.data, 0.0, 0.02)
-    #     elif classname.find('BatchNorm') != -1:
-    #         nn.init.normal_(m.weight.data, 1.0, 0.02)
-    #         nn.init.constant_(m.bias.data, 0)
+    def weights_init(self, m):
+
+        classname = m.__class__.__name__
+        if classname.find('Conv') != -1:
+            nn.init.kaiming_normal_(m.weight, mode='fan_out')
+        elif classname.find('Linear') != -1:
+            nn.init.kaiming_normal_(m.weight, mode='fan_in')
 
 class Flatten(nn.Module):
     def forward(self, input):
@@ -176,7 +177,6 @@ class Hypotheses(nn.Module):
     def forward(self, input):
 
         hout = self.h_conv(input)
-        # hout = torch.clamp(hout, min=1e-12, max=1-(1e-12))
 
         return hout
 
@@ -190,36 +190,28 @@ class Discriminator(nn.Module):
 
         self.dis_conv = nn.ModuleList([
             nn.Conv2d(in_channels=self.channel, out_channels=16, kernel_size=self.ksize, stride=1, padding=self.ksize//2),
-            nn.BatchNorm2d(16),
             nn.ELU(),
             nn.Conv2d(in_channels=16, out_channels=16, kernel_size=self.ksize, stride=1, padding=self.ksize//2),
-            nn.BatchNorm2d(16),
             nn.ELU(),
             nn.MaxPool2d(2),
 
             nn.Conv2d(in_channels=16, out_channels=32, kernel_size=self.ksize, stride=1, padding=self.ksize//2),
-            nn.BatchNorm2d(32),
             nn.ELU(),
             nn.Conv2d(in_channels=32, out_channels=32, kernel_size=self.ksize, stride=1, padding=self.ksize//2),
-            nn.BatchNorm2d(32),
             nn.ELU(),
             nn.MaxPool2d(2),
 
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=self.ksize, stride=1, padding=self.ksize//2),
-            nn.BatchNorm2d(64),
             nn.ELU(),
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=self.ksize, stride=1, padding=self.ksize//2),
-            nn.BatchNorm2d(64),
             nn.ELU(),
         ])
 
         self.dis_dense = nn.ModuleList([
             Flatten(),
             nn.Linear((self.height//(2**2))*(self.width//(2**2))*self.channel*64, 512),
-            nn.BatchNorm1d(512),
             nn.ELU(),
             nn.Linear(512, 1),
-            nn.BatchNorm1d(1),
             nn.Sigmoid(),
         ])
 

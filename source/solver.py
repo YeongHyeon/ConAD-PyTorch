@@ -148,12 +148,8 @@ def forward(neuralnet, x, z):
         if(idx_h == best_idx): pass
         else:
             tmp_npy = torch2npy(x_mulout[idx_h])
-            if(x_others is None): x_others = np.expand_dims(tmp_npy, axis=0)
-            else: x_others = np.append(x_others, np.expand_dims(tmp_npy, axis=0), axis=0)
-    x = torch.from_numpy(torch2npy(x))
-    x_fake = torch.from_numpy(torch2npy(x_fake))
-    x_best = torch.from_numpy(torch2npy(x_best))
-    x_others = torch.from_numpy(x_others)
+            if(x_others is None): x_others = x_mulout[idx_h].unsqueeze(0)
+            else: x_others = torch.cat((x_others, x_mulout[idx_h].unsqueeze(0)))
 
     d_real, d_fake, d_best, d_others = 0, 0, 0, 0
     d_real = neuralnet.discriminator(x.to(neuralnet.device))
@@ -235,13 +231,14 @@ def training(neuralnet, dataset, epochs, batch_size):
 
             d_real, d_fake, d_best, d_others, x_best, x_fake, x_mulout, z_code, z_mu, z_sigma = \
                 forward(neuralnet, x_tr_torch, z_tr_torch)
-
             loss_d = lfs.lossfunc_d(d_real, d_fake, d_best, d_others, neuralnet.num_h)
-            loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, loss_d)
             neuralnet.optimizer_d.zero_grad()
-            loss_d.backward()
+            loss_d.backward(retain_graph=True)
             neuralnet.optimizer_d.step()
 
+            d_real, d_fake, d_best, d_others, x_best, x_fake, x_mulout, z_code, z_mu, z_sigma = \
+                forward(neuralnet, x_tr_torch, z_tr_torch)
+            loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, loss_d)
             neuralnet.optimizer_g.zero_grad()
             loss_g.backward()
             neuralnet.optimizer_g.step()
