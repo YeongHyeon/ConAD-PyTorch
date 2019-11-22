@@ -41,13 +41,11 @@ def lossfunc_d(d_real, d_fake, d_best, d_others, num_h):
 
 def lossfunc_g(x, x_best, z_mu, z_sigma, loss_d):
 
-    x, x_best, z_mu, z_sigma = \
-        x.cpu(), x_best.cpu(), z_mu.cpu(), z_sigma.cpu()
+    x, x_hat, mu, sigma = x.cpu(), x_best.cpu(), z_mu.cpu(), z_sigma.cpu()
 
-    restore_error = -torch.sum(x * torch.log(x_best + 1e-12) + (1 - x) * torch.log(1 - x_best + 1e-12), dim=(1, 2, 3))
-    kl_divergence = 0.5 * torch.sum(z_mu**2 + z_sigma**2 - torch.log(z_sigma**2 + 1e-12) - 1, dim=(1))
+    restore_error = -torch.sum(x * torch.log(x_hat + 1e-12) + (1 - x) * torch.log(1 - x_hat + 1e-12), dim=(1, 2, 3))
+    kl_divergence = 0.5 * torch.sum(mu**2 + sigma**2 - torch.log(sigma**2 + 1e-12) - 1, dim=(1))
 
-    ELBO = torch.mean(restore_error + kl_divergence)
-    loss_g = ELBO #- loss_d
+    loss_g = torch.mean(restore_error + kl_divergence) #- loss_d
 
     return loss_g

@@ -160,14 +160,14 @@ def forward(neuralnet, x, z):
         d_others = torch.add(tmp_d, d_others)
     d_others = torch.div(d_others, neuralnet.num_h-1)
 
-    return d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma
+    return d_real, d_fake, d_best, d_others, x_best, x_fake, x_mulout, z_code, z_mu, z_sigma
 
 def training(neuralnet, dataset, epochs, batch_size):
 
     print("\nTraining to %d epochs (%d of minibatch size)" %(epochs, batch_size))
 
     make_dir(path="results")
-    result_list = ["tr_latent", "tr_resotring"]
+    result_list = ["tr_latent", "tr_resotring", "comparing"]
     for result_name in result_list: make_dir(path=os.path.join("results", result_name))
 
     start_time = time.time()
@@ -183,12 +183,15 @@ def training(neuralnet, dataset, epochs, batch_size):
         x_tr, x_tr_torch, y_tr, y_tr_torch, _ = dataset.next_train(batch_size=test_size, fix=True) # Initial batch
         z_tr, z_tr_torch = dataset.random_noise(test_size, neuralnet.z_dim)
 
-        d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+        d_real, d_fake, d_best, d_others, x_best, x_fake, x_mulout, z_code, z_mu, z_sigma = \
             forward(neuralnet, x_tr_torch, z_tr_torch)
 
         z_code = torch2npy(z_code)
         x_best = np.transpose(torch2npy(x_best), (0, 2, 3, 1))
         x_fake = np.transpose(torch2npy(x_fake), (0, 2, 3, 1))
+        x_hypo0 = np.transpose(torch2npy(x_mulout[0]), (0, 2, 3, 1))
+        x_hypo1 = np.transpose(torch2npy(x_mulout[1]), (0, 2, 3, 1))
+        x_hypo2 = np.transpose(torch2npy(x_mulout[2]), (0, 2, 3, 1))
 
         if(neuralnet.z_dim == 2):
             latent_plot(latent=z_code, y=y_tr, n=dataset.num_class, \
@@ -204,6 +207,9 @@ def training(neuralnet, dataset, epochs, batch_size):
         save_img(contents=[x_tr, x_best, (x_tr-x_best)**2, x_tr, x_fake, (x_tr-x_fake)**2], \
             names=["Real X", "Best of Restorated X", "Difference", "Real X", "Fake X (from Z)", "Difference"], \
             savename=os.path.join("results", "tr_resotring", "%08d.png" %(epoch)))
+        save_img(contents=[x_tr, x_best, x_fake, x_hypo0, x_hypo1, x_hypo2], \
+            names=["Real X", "Best", "Fake", "0", "1", "2"], \
+            savename=os.path.join("results", "comparing", "%08d.png" %(epoch)))
 
         if(neuralnet.z_dim == 2):
             x_values = np.linspace(-3, 3, test_sq)
@@ -222,19 +228,16 @@ def training(neuralnet, dataset, epochs, batch_size):
             x_tr, x_tr_torch, y_tr, y_tr_torch, terminator = dataset.next_train(batch_size)
             z_tr, z_tr_torch = dataset.random_noise(batch_size, neuralnet.z_dim)
 
-            d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+            d_real, d_fake, d_best, d_others, x_best, x_fake, x_mulout, z_code, z_mu, z_sigma = \
                 forward(neuralnet, x_tr_torch, z_tr_torch)
 
             loss_d = lfs.lossfunc_d(d_real, d_fake, d_best, d_others, neuralnet.num_h)
+            loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, loss_d)
+
             neuralnet.optimizer_d.zero_grad()
             neuralnet.optimizer_g.zero_grad()
             loss_d.backward(retain_graph=True)
             neuralnet.optimizer_d.step()
-
-            loss_g = lfs.lossfunc_g(x_tr_torch, x_best, z_mu, z_sigma, \
-                lfs.lossfunc_d(d_real, d_fake, d_best, d_others, neuralnet.num_h))
-            neuralnet.optimizer_d.zero_grad()
-            neuralnet.optimizer_g.zero_grad()
             loss_g.backward()
             neuralnet.optimizer_g.step()
 
@@ -288,7 +291,7 @@ def test(neuralnet, dataset):
         x_te, x_te_torch, y_te, y_te_torch, terminator = dataset.next_test(1) # y_te does not used in this prj.
         z_te, z_te_torch = dataset.random_noise(1, neuralnet.z_dim)
 
-        d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+        d_real, d_fake, d_best, d_others, x_best, x_fake, x_mulout, z_code, z_mu, z_sigma = \
             forward(neuralnet, x_te_torch, z_te_torch)
         mse = lfs.mean_square_error(x_te_torch, x_best)
 
@@ -319,7 +322,7 @@ def test(neuralnet, dataset):
         x_te, x_te_torch, y_te, y_te_torch, terminator = dataset.next_test(1) # y_te does not used in this prj.
         z_te, z_te_torch = dataset.random_noise(1, neuralnet.z_dim)
 
-        d_real, d_fake, d_best, d_others, x_best, x_fake, z_code, z_mu, z_sigma = \
+        d_real, d_fake, d_best, d_others, x_best, x_fake, x_mulout, z_code, z_mu, z_sigma = \
             forward(neuralnet, x_te_torch, z_te_torch)
         mse = lfs.mean_square_error(x_te_torch, x_best)
 
