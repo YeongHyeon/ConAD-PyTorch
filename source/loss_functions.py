@@ -46,6 +46,6 @@ def lossfunc_g(x, x_best, z_mu, z_sigma, loss_d):
     restore_error = -torch.sum(x * torch.log(x_hat + 1e-12) + (1 - x) * torch.log(1 - x_hat + 1e-12), dim=(1, 2, 3))
     kl_divergence = 0.5 * torch.sum(mu**2 + sigma**2 - torch.log(sigma**2 + 1e-12) - 1, dim=(1))
 
-    loss_g = torch.mean(restore_error + kl_divergence) #- loss_d
+    loss_g = torch.mean(restore_error + kl_divergence) - loss_d
 
     return loss_g
